@@ -5,6 +5,11 @@ using Sagara.NuGetDiff.Tool.Git;
 using Sagara.NuGetDiff.Tool.Packages;
 using TextCopy;
 
+
+//
+// Configure the various command line options and arguments, and construct the root command.
+//
+
 Option<FileInfo?> fileOption = new("--file", "-f")
 {
     Description = $"The {PackagesPropsLocator.FileName} file to compare. Defaults to the nearest one at or above the current directory.",
@@ -54,17 +59,27 @@ RootCommand rootCommand = new($"Builds a git commit command listing the NuGet pa
     noClipboardOption,
 };
 
-rootCommand.SetAction(parseResult => Run(
-    parseResult.GetValue(fileOption),
-    parseResult.GetValue(fromOption)!,
-    parseResult.GetValue(toOption),
-    parseResult.GetValue(stagedOption),
-    parseResult.GetValue(subjectOption)!,
-    parseResult.GetValue(shellOption),
-    parseResult.GetValue(noClipboardOption)));
+rootCommand.SetAction(
+    parseResult => 
+        Run(
+            file: parseResult.GetValue(fileOption),
+            from: parseResult.GetValue(fromOption)!,
+            to: parseResult.GetValue(toOption),
+            staged: parseResult.GetValue(stagedOption),
+            subject: parseResult.GetValue(subjectOption)!,
+            shell: parseResult.GetValue(shellOption),
+            noClipboard: parseResult.GetValue(noClipboardOption)));
 
 return rootCommand.Parse(args).Invoke();
 
+
+//
+// Private methods
+//
+
+/// <summary>
+/// Runs the main application logic.
+/// </summary>
 static int Run(FileInfo? file, string from, string? to, bool staged, string subject, ShellKind shell, bool noClipboard)
 {
     if (staged && to is not null)
@@ -75,18 +90,20 @@ static int Run(FileInfo? file, string from, string? to, bool staged, string subj
     try
     {
         string currentDirectory = Environment.CurrentDirectory;
-        string repositoryRoot = GitClient.GetRepositoryRoot(currentDirectory);
+        string repositoryRoot = GitClient.GetRepositoryRoot(workingDirectory: currentDirectory);
 
-        string? propsPath = file?.FullName ?? PackagesPropsLocator.Find(currentDirectory, repositoryRoot);
+        // Try to locate Directory.Packages.props file in the repository, starting at the current directory and
+        //   walking up to the repository root. If the user specified a file, use that instead.
+        string? propsPath = file?.FullName ?? PackagesPropsLocator.Find(startDirectory: currentDirectory, repositoryRoot: repositoryRoot);
         if (propsPath is null)
         {
             return Fail($"Could not find {PackagesPropsLocator.FileName} between the current directory and the repository root. Use --file to specify it.");
         }
 
-        GitClient.VerifyRevision(repositoryRoot, from);
+        GitClient.VerifyRevision(workingDirectory: repositoryRoot, revision: from);
         if (to is not null)
         {
-            GitClient.VerifyRevision(repositoryRoot, to);
+            GitClient.VerifyRevision(workingDirectory: repositoryRoot, revision: to);
         }
 
         string? oldXml = GitClient.TryReadFileAtRevision(propsPath, from);
@@ -100,7 +117,7 @@ static int Run(FileInfo? file, string from, string? to, bool staged, string subj
             return Fail($"{propsPath} exists in neither version being compared.");
         }
 
-        PackageDiff diff = PackageDiffer.Diff(PackagesPropsParser.Parse(oldXml), PackagesPropsParser.Parse(newXml));
+        PackageDiff diff = PackageDiffer.Diff(oldEntries: PackagesPropsParser.Parse(oldXml), newEntries: PackagesPropsParser.Parse(newXml));
         if (diff.IsEmpty)
         {
             Console.Error.WriteLine("No package changes detected.");
