@@ -48,6 +48,7 @@ Option<bool> noClipboardOption = new("--no-clipboard")
     Description = "Print the git command without copying it to the clipboard.",
 };
 
+// Each option is added with C#'s goofy inferred-.Add() syntax.
 RootCommand rootCommand = new($"Builds a git commit command listing the NuGet packages upgraded, downgraded, added, and removed in {PackagesPropsLocator.FileName}, and copies it to the clipboard.")
 {
     fileOption,
