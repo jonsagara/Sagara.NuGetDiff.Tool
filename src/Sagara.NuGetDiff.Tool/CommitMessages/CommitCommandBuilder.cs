@@ -34,7 +34,7 @@ internal static class CommitCommandBuilder
     /// <param name="paragraphs">The paragraphs from <see cref="BuildParagraphs"/>.</param>
     /// <param name="pathspec">If not null, commit only this path instead of whatever is staged.</param>
     /// <param name="shell">The shell to quote arguments for.</param>
-    public static string BuildGitCommand(IReadOnlyList<string> paragraphs, string? pathspec, ShellKind shell)
+    public static string BuildGitCommandText(IReadOnlyList<string> paragraphs, string? pathspec, ShellKind shell)
     {
         StringBuilder command = new("git commit");
 

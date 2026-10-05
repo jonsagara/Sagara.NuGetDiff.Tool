@@ -31,7 +31,7 @@ public class CommitCommandBuilderTests
     [Fact]
     public void BuildGitCommand_PowerShell()
     {
-        string command = CommitCommandBuilder.BuildGitCommand(["Subject", "Upgraded:\nA 1.0.0 -> 2.0.0"], "Directory.Packages.props", ShellKind.PowerShell);
+        string command = CommitCommandBuilder.BuildGitCommandText(["Subject", "Upgraded:\nA 1.0.0 -> 2.0.0"], "Directory.Packages.props", ShellKind.PowerShell);
 
         Assert.Equal("git commit -m 'Subject' -m 'Upgraded:\nA 1.0.0 -> 2.0.0' -- 'Directory.Packages.props'", command);
     }
@@ -39,7 +39,7 @@ public class CommitCommandBuilderTests
     [Fact]
     public void BuildGitCommand_WithoutPathspec_OmitsSeparator()
     {
-        string command = CommitCommandBuilder.BuildGitCommand(["Subject"], null, ShellKind.Posix);
+        string command = CommitCommandBuilder.BuildGitCommandText(["Subject"], null, ShellKind.Posix);
 
         Assert.Equal("git commit -m 'Subject'", command);
     }

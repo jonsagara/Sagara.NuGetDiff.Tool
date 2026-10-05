@@ -107,18 +107,18 @@ static int Run(FileInfo? file, string from, string? to, bool staged, string subj
             GitClient.VerifyRevision(workingDirectory: repositoryRoot, revision: to);
         }
 
-        string? oldDirPackagePropsFileXml = GitClient.TryReadFileAtRevision(dirPackagePropsFilePath, from);
-        string? newDirPackagePropsFileXml = staged ? GitClient.TryReadStagedFile(dirPackagePropsFilePath)
-            : to is not null ? GitClient.TryReadFileAtRevision(dirPackagePropsFilePath, to)
-            : File.Exists(dirPackagePropsFilePath) ? File.ReadAllText(dirPackagePropsFilePath)
-            : null;
+        string? oldDirPackagePropsFileXml = GitClient.TryReadFileAtRevision(filePath: dirPackagePropsFilePath, revision: from);
+        string? newDirPackagePropsFileXml = ReadNewDirPackagePropsFileXml(dirPackagePropsFilePath: dirPackagePropsFilePath, to: to, staged: staged);
 
         if (oldDirPackagePropsFileXml is null && newDirPackagePropsFileXml is null)
         {
             return Fail($"{dirPackagePropsFilePath} exists in neither version being compared.");
         }
 
-        PackageDiff diff = PackageDiffer.Diff(oldEntries: PackagesPropsParser.Parse(oldDirPackagePropsFileXml), newEntries: PackagesPropsParser.Parse(newDirPackagePropsFileXml));
+        var oldPackagePropsEntries = PackagesPropsParser.Parse(oldDirPackagePropsFileXml);
+        var newPackagePropsEntries = PackagesPropsParser.Parse(newDirPackagePropsFileXml);
+        PackageDiff diff = PackageDiffer.Diff(oldEntries: oldPackagePropsEntries, newEntries: newPackagePropsEntries);
+
         if (diff.IsEmpty)
         {
             Console.Error.WriteLine("No package changes detected.");
@@ -129,14 +129,15 @@ static int Run(FileInfo? file, string from, string? to, bool staged, string subj
         //   file. Otherwise, commit whatever is staged.
         string? pathspec = staged || to is not null
             ? null
-            : Path.GetRelativePath(currentDirectory, dirPackagePropsFilePath).Replace('\\', '/');
+            : Path.GetRelativePath(relativeTo: currentDirectory, path: dirPackagePropsFilePath).Replace('\\', '/');
 
-        string command = CommitCommandBuilder.BuildGitCommand(CommitCommandBuilder.BuildParagraphs(diff, subject), pathspec, shell);
-        Console.WriteLine(command);
+        var gitCommitCommandParagraphs = CommitCommandBuilder.BuildParagraphs(diff: diff, subject: subject);
+        string gitCommandText = CommitCommandBuilder.BuildGitCommandText(paragraphs: gitCommitCommandParagraphs, pathspec: pathspec, shell: shell);
+        Console.WriteLine(gitCommandText);
 
         if (!noClipboard)
         {
-            CopyToClipboard(command);
+            CopyToClipboard(gitCommandText);
         }
 
         return 0;
@@ -149,6 +150,31 @@ static int Run(FileInfo? file, string from, string? to, bool staged, string subj
     {
         return Fail($"Could not parse {PackagesPropsLocator.FileName}: {ex.Message}");
     }
+}
+
+/// <summary>
+/// Reads the version of Directory.Packages.props being compared to: the staged file, the file at the --to
+/// revision, or the working tree file, in that order. Returns null if the file doesn't exist there.
+/// </summary>
+static string? ReadNewDirPackagePropsFileXml(string dirPackagePropsFilePath, string? to, bool staged)
+{
+    if (staged)
+    {
+        return GitClient.TryReadStagedFile(filePath: dirPackagePropsFilePath);
+    }
+
+    if (to is not null)
+    {
+        return GitClient.TryReadFileAtRevision(filePath: dirPackagePropsFilePath, revision: to);
+    }
+
+    if (File.Exists(dirPackagePropsFilePath))
+    {
+        return File.ReadAllText(dirPackagePropsFilePath);
+    }
+
+    // The file was deleted from the working tree.
+    return null;
 }
 
 static void CopyToClipboard(string text)
