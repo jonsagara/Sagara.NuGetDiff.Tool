@@ -66,7 +66,7 @@ internal static partial class PackagesPropsParser
     /// </summary>
     private static string ExpandProperties(string value, Dictionary<string, string> properties)
     {
-        return PropertyReferenceRegex().Replace(value, match => properties.TryGetValue(match.Groups["name"].Value, out string? propertyValue)
+        return PropertyReferenceRegex.Replace(value, match => properties.TryGetValue(match.Groups["name"].Value, out string? propertyValue)
             ? propertyValue
             : match.Value);
     }
@@ -75,7 +75,7 @@ internal static partial class PackagesPropsParser
     {
         return string.IsNullOrWhiteSpace(condition)
             ? null
-            : WhitespaceRegex().Replace(condition.Trim(), " ");
+            : WhitespaceRegex.Replace(condition.Trim(), " ");
     }
 
     private static string? CombineConditions(string? groupCondition, string? itemCondition)
@@ -89,8 +89,8 @@ internal static partial class PackagesPropsParser
     }
 
     [GeneratedRegex(@"\$\((?<name>[A-Za-z_][A-Za-z0-9_.\-]*)\)")]
-    private static partial Regex PropertyReferenceRegex();
+    private static partial Regex PropertyReferenceRegex { get; }
 
     [GeneratedRegex(@"\s+")]
-    private static partial Regex WhitespaceRegex();
+    private static partial Regex WhitespaceRegex { get; }
 }

@@ -17,6 +17,9 @@ internal static class PackageDiffer
 
     public static PackageDiff Diff(IReadOnlyList<PackageVersionEntry> oldEntries, IReadOnlyList<PackageVersionEntry> newEntries)
     {
+        ArgumentNullException.ThrowIfNull(oldEntries);
+        ArgumentNullException.ThrowIfNull(newEntries);
+
         Dictionary<(string Id, string Condition), PackageVersionEntry> oldByKey = ToDictionary(oldEntries);
         Dictionary<(string Id, string Condition), PackageVersionEntry> newByKey = ToDictionary(newEntries);
 
