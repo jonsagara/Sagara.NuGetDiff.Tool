@@ -19,7 +19,11 @@ internal static class GitClient
     /// </summary>
     public static string GetRepositoryRoot(string workingDirectory)
     {
-        return Path.GetFullPath(Run(workingDirectory, "rev-parse", "--show-toplevel").Trim());
+        // Show the absolute path of the top-level directory of the working tree.
+        // If there is no working tree, report an error.
+        var repositoryRoot = RunGitCommand(workingDirectory: workingDirectory, "rev-parse", "--show-toplevel");
+
+        return Path.GetFullPath(repositoryRoot.Trim());
     }
 
     /// <summary>
@@ -27,7 +31,16 @@ internal static class GitClient
     /// </summary>
     public static void VerifyRevision(string workingDirectory, string revision)
     {
-        if (Execute(workingDirectory, "rev-parse", "--verify", "--quiet", $"{revision}^{{commit}}").ExitCode != 0)
+        // Safely checks whether the reference or short hash "revision" points to a valid commit object (or can be dereferenced to one),
+        //   printing the full 40-character commit hash if it exists and failing silently if it does not.
+        // * rev-parse: Parse git revision (branch, tag, commit hash, etc.) and output the corresponding commit hash.
+        // * --verify: Exit with a non-zero status if the revision is not valid.
+        // * --quiet: Suppress output; we only care about the exit code.
+        // * revision^{commit}: Dereference the revision to a commit object. If the revision is a tag, this will resolve it to the
+        //   commit it points to.
+        var callGitResult = CallGitExecutable(workingDirectory: workingDirectory, "rev-parse", "--verify", "--quiet", $"{revision}^{{commit}}");
+
+        if (callGitResult.ExitCode != 0)
         {
             throw new GitException($"'{revision}' is not a valid revision.");
         }
@@ -38,7 +51,7 @@ internal static class GitClient
     /// </summary>
     public static string? TryReadFileAtRevision(string filePath, string revision)
     {
-        return TryReadObject(filePath, $"{revision}:");
+        return TryReadObject(filePath: filePath, revisionPrefix: $"{revision}:");
     }
 
     /// <summary>
@@ -46,8 +59,13 @@ internal static class GitClient
     /// </summary>
     public static string? TryReadStagedFile(string filePath)
     {
-        return TryReadObject(filePath, ":");
+        return TryReadObject(filePath: filePath, revisionPrefix: ":");
     }
+
+
+    //
+    // Private methods
+    //
 
     private static string? TryReadObject(string filePath, string revisionPrefix)
     {
@@ -57,25 +75,47 @@ internal static class GitClient
         string directory = Path.GetDirectoryName(fullPath)!;
         string objectName = $"{revisionPrefix}./{Path.GetFileName(fullPath)}";
 
-        return Execute(directory, "cat-file", "-e", objectName).ExitCode == 0
-            ? Run(directory, "show", objectName)
+        // Check if the git object exists before trying to read it; git will throw an error if it doesn't,
+        //   and we want to return null instead of throwing.
+        var callGitResult = CallGitExecutable(directory, "cat-file", "-e", objectName);
+        var gitObjectExists = callGitResult.ExitCode == 0;
+
+        return gitObjectExists
+            ? RunGitCommand(workingDirectory: directory, "show", objectName)
             : null;
     }
 
-    private static string Run(string workingDirectory, params string[] arguments)
+    /// <summary>
+    /// Run a git command from the command line. If the git command fails, throw a <see cref="GitException"/> with the 
+    /// error message from git.
+    /// </summary>
+    /// <exception cref="GitException"></exception>
+    private static string RunGitCommand(string workingDirectory, params string[] arguments)
     {
-        (int exitCode, string standardOutput, string standardError) = Execute(workingDirectory, arguments);
+        var callGitResult = CallGitExecutable(workingDirectory, arguments);
 
-        if (exitCode != 0)
+        if (callGitResult.ExitCode == 0)
         {
-            string detail = string.IsNullOrWhiteSpace(standardError) ? $"exit code {exitCode}" : standardError.Trim();
-            throw new GitException($"git {string.Join(' ', arguments)} failed: {detail}");
+            // Success. Return whatever git wrote to stdout.
+            return callGitResult.StandardOutput;
         }
 
-        return standardOutput;
+        // The git command failed. If git wrote to stderr, use that as the error message; otherwise, use the exit code
+        //   and throw.
+        string detail = !string.IsNullOrWhiteSpace(callGitResult.StandardError)
+            ? callGitResult.StandardError.Trim()
+            : $"exit code {callGitResult.ExitCode}";
+
+        throw new GitException($"git {string.Join(' ', arguments)} failed: {detail}");
     }
 
-    private static (int ExitCode, string StandardOutput, string StandardError) Execute(string workingDirectory, params string[] arguments)
+
+    private record CallGitResult(int ExitCode, string StandardOutput, string StandardError);
+
+    /// <summary>
+    /// Execute a git command using <see cref="Process"/> and return the exit code, stdout, and stderr.
+    /// </summary>
+    private static CallGitResult CallGitExecutable(string workingDirectory, params string[] arguments)
     {
         ProcessStartInfo startInfo = new("git")
         {
@@ -100,7 +140,10 @@ internal static class GitClient
         string standardError = standardErrorTask.GetAwaiter().GetResult();
         process.WaitForExit();
 
-        return (process.ExitCode, standardOutput, standardError);
+        return new CallGitResult(
+            ExitCode: process.ExitCode,
+            StandardOutput: standardOutput,
+            StandardError: standardError);
     }
 
     private static Process Start(ProcessStartInfo startInfo)

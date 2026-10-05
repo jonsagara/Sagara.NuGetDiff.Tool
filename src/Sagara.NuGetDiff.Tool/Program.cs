@@ -94,8 +94,8 @@ static int Run(FileInfo? file, string from, string? to, bool staged, string subj
 
         // Try to locate Directory.Packages.props file in the repository, starting at the current directory and
         //   walking up to the repository root. If the user specified a file, use that instead.
-        string? propsPath = file?.FullName ?? PackagesPropsLocator.Find(startDirectory: currentDirectory, repositoryRoot: repositoryRoot);
-        if (propsPath is null)
+        string? dirPackagePropsFilePath = file?.FullName ?? PackagesPropsLocator.Find(startDirectory: currentDirectory, repositoryRoot: repositoryRoot);
+        if (dirPackagePropsFilePath is null)
         {
             return Fail($"Could not find {PackagesPropsLocator.FileName} between the current directory and the repository root. Use --file to specify it.");
         }
@@ -106,18 +106,18 @@ static int Run(FileInfo? file, string from, string? to, bool staged, string subj
             GitClient.VerifyRevision(workingDirectory: repositoryRoot, revision: to);
         }
 
-        string? oldXml = GitClient.TryReadFileAtRevision(propsPath, from);
-        string? newXml = staged ? GitClient.TryReadStagedFile(propsPath)
-            : to is not null ? GitClient.TryReadFileAtRevision(propsPath, to)
-            : File.Exists(propsPath) ? File.ReadAllText(propsPath)
+        string? oldDirPackagePropsFileXml = GitClient.TryReadFileAtRevision(dirPackagePropsFilePath, from);
+        string? newDirPackagePropsFileXml = staged ? GitClient.TryReadStagedFile(dirPackagePropsFilePath)
+            : to is not null ? GitClient.TryReadFileAtRevision(dirPackagePropsFilePath, to)
+            : File.Exists(dirPackagePropsFilePath) ? File.ReadAllText(dirPackagePropsFilePath)
             : null;
 
-        if (oldXml is null && newXml is null)
+        if (oldDirPackagePropsFileXml is null && newDirPackagePropsFileXml is null)
         {
-            return Fail($"{propsPath} exists in neither version being compared.");
+            return Fail($"{dirPackagePropsFilePath} exists in neither version being compared.");
         }
 
-        PackageDiff diff = PackageDiffer.Diff(oldEntries: PackagesPropsParser.Parse(oldXml), newEntries: PackagesPropsParser.Parse(newXml));
+        PackageDiff diff = PackageDiffer.Diff(oldEntries: PackagesPropsParser.Parse(oldDirPackagePropsFileXml), newEntries: PackagesPropsParser.Parse(newDirPackagePropsFileXml));
         if (diff.IsEmpty)
         {
             Console.Error.WriteLine("No package changes detected.");
@@ -128,7 +128,7 @@ static int Run(FileInfo? file, string from, string? to, bool staged, string subj
         //   file. Otherwise, commit whatever is staged.
         string? pathspec = staged || to is not null
             ? null
-            : Path.GetRelativePath(currentDirectory, propsPath).Replace('\\', '/');
+            : Path.GetRelativePath(currentDirectory, dirPackagePropsFilePath).Replace('\\', '/');
 
         string command = CommitCommandBuilder.BuildGitCommand(CommitCommandBuilder.BuildParagraphs(diff, subject), pathspec, shell);
         Console.WriteLine(command);
