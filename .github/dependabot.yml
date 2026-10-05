@@ -1,0 +1,10 @@
+version: 2
+updates:
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "daily"
+    # Wait a week before proposing a new action version, so a compromised release has time to be
+    #   caught and pulled before it reaches this repository.
+    cooldown:
+      default-days: 7
