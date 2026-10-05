@@ -1,0 +1,29 @@
+<Project>
+	<PropertyGroup>
+
+		<TargetFrameworks>net10.0</TargetFrameworks>
+		
+		<!-- NuGet -->
+		<Version>1.0.0-alpha.1</Version>
+		<AssemblyVersion>1.0.0</AssemblyVersion>
+		<FileVersion>1.0.0</FileVersion>
+		<Authors>Jon Sagara</Authors>
+		<Copyright>Copyright 2026</Copyright>
+		<RepositoryUrl>https://github.com/jonsagara/Sagara.NuGetDiff.Tool</RepositoryUrl>
+		<RepositoryType>git</RepositoryType>
+		<PackageProjectUrl>https://github.com/jonsagara/Sagara.NuGetDiff.Tool</PackageProjectUrl>
+		
+		<!-- C# stuff -->
+		<ImplicitUsings>enable</ImplicitUsings>
+		<Nullable>enable</Nullable>
+		<!-- LangVersion intentionally omitted: SDK infers the recommended C# version per TFM -->
+
+		<!-- 
+			This is really helpful for larger projects, but I leave it in anyway. Why build if you don't have to? 
+			
+			See: https://devblogs.microsoft.com/visualstudio/vs-toolbox-accelerate-your-builds-of-sdk-style-net-projects/
+		-->
+		<AccelerateBuildsInVisualStudio>true</AccelerateBuildsInVisualStudio>
+		
+	</PropertyGroup>
+</Project>
