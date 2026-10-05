@@ -1,7 +1,33 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
 
 	<PropertyGroup>
 		<OutputType>Exe</OutputType>
+
+		<!-- .NET tool -->
+		<PackAsTool>true</PackAsTool>
+		<ToolCommandName>nuget-diff</ToolCommandName>
+		<PackageId>Sagara.NuGetDiff.Tool</PackageId>
+		<Description>Builds a ready-to-run git commit command listing the NuGet packages upgraded, downgraded, added, and removed in Directory.Packages.props, and copies it to the clipboard.</Description>
+		<PackageTags>nuget;git;commit;central-package-management;directory.packages.props;dotnet-tool</PackageTags>
+		<PackageReadmeFile>README.md</PackageReadmeFile>
+		<PackageLicenseExpression>MIT</PackageLicenseExpression>
+
+		<!-- Keep working when only a newer .NET runtime is installed. -->
+		<RollForward>Major</RollForward>
 	</PropertyGroup>
+
+	<ItemGroup>
+		<PackageReference Include="NuGet.Versioning" />
+		<PackageReference Include="System.CommandLine" />
+		<PackageReference Include="TextCopy" />
+	</ItemGroup>
+
+	<ItemGroup>
+		<None Include="..\..\README.md" Pack="true" PackagePath="\" />
+	</ItemGroup>
+
+	<ItemGroup>
+		<InternalsVisibleTo Include="Sagara.NuGetDiff.Tool.Tests" />
+	</ItemGroup>
 
 </Project>
