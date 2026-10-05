@@ -18,11 +18,11 @@ internal static class CommitCommandBuilder
     {
         List<string> paragraphs = [subject];
 
-        AddSection(paragraphs, "Upgraded", diff.Upgraded, c => $"{c.OldVersion} -> {c.NewVersion}");
-        AddSection(paragraphs, "Downgraded", diff.Downgraded, c => $"{c.OldVersion} -> {c.NewVersion}");
-        AddSection(paragraphs, "Changed", diff.Changed, c => $"{c.OldVersion} -> {c.NewVersion}");
-        AddSection(paragraphs, "Added", diff.Added, c => c.NewVersion);
-        AddSection(paragraphs, "Removed", diff.Removed, c => c.OldVersion);
+        AddSection(paragraphs, header: "Upgraded", changes: diff.Upgraded, formatVersion: c => $"{c.OldVersion} -> {c.NewVersion}");
+        AddSection(paragraphs, header: "Downgraded", changes: diff.Downgraded, formatVersion: c => $"{c.OldVersion} -> {c.NewVersion}");
+        AddSection(paragraphs, header: "Changed", changes: diff.Changed, formatVersion: c => $"{c.OldVersion} -> {c.NewVersion}");
+        AddSection(paragraphs, header: "Added", changes: diff.Added, formatVersion: c => c.NewVersion);
+        AddSection(paragraphs, header: "Removed", changes: diff.Removed, formatVersion: c => c.OldVersion);
 
         return paragraphs;
     }
