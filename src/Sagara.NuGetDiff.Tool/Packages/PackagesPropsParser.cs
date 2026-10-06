@@ -21,7 +21,8 @@ internal static partial class PackagesPropsParser
             return [];
         }
 
-        XElement root = XDocument.Parse(dirPackagesPropsXml.TrimStart('﻿')).Root
+        // \uFEFF -> the byte order mark (BOM, ZERO WIDTH NO-BREAK SPACE). It's invisible, so it can't be shown here.
+        XElement root = XDocument.Parse(dirPackagesPropsXml.TrimStart('\uFEFF')).Root
             ?? throw new InvalidDataException("The file has no root element.");
 
         // MSBuild evaluates every property before any item, so a version can reference a property declared

@@ -35,7 +35,7 @@ internal static class PackageDiffer
 
             if (!oldEntriesByIdAndCondition.TryGetValue(newEntryKvp.Key, out PackageVersionEntry? oldEntry))
             {
-                // There is no old entry for this package; it is newly added to Directory.Build.props.
+                // There is no old entry for this package; it is newly added to Directory.Packages.props.
                 added.Add(new PackageChange(Id: newEntry.Id, Condition: newEntry.Condition, OldVersion: null, NewVersion: newEntry.Version));
                 continue;
             }
@@ -59,7 +59,7 @@ internal static class PackageDiffer
         {
             if (!newEntriesByIdAndCondition.ContainsKey(oldEntryKvp.Key))
             {
-                // There is no new entry for this package; it has been removed from Directory.Build.props.
+                // There is no new entry for this package; it has been removed from Directory.Packages.props.
                 removed.Add(new PackageChange(Id: oldEntryKvp.Value.Id, Condition: oldEntryKvp.Value.Condition, OldVersion: oldEntryKvp.Value.Version, NewVersion: null));
             }
         }

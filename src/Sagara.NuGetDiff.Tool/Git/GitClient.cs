@@ -32,10 +32,11 @@ internal static class GitClient
     public static void VerifyRevision(string workingDirectory, string revision)
     {
         // Safely checks whether the reference or short hash "revision" points to a valid commit object (or can be dereferenced to one),
-        //   printing the full 40-character commit hash if it exists and failing silently if it does not.
+        //   printing the full commit hash if it exists and failing silently if it does not.
         // * rev-parse: Parse git revision (branch, tag, commit hash, etc.) and output the corresponding commit hash.
         // * --verify: Exit with a non-zero status if the revision is not valid.
-        // * --quiet: Suppress output; we only care about the exit code.
+        // * --quiet: Don't print an error message if the revision is not valid. A valid revision's hash is still printed,
+        //   but we ignore it; we only care about the exit code.
         // * revision^{commit}: Dereference the revision to a commit object. If the revision is a tag, this will resolve it to the
         //   commit it points to.
         var callGitResult = CallGitExecutable(workingDirectory: workingDirectory, "rev-parse", "--verify", "--quiet", $"{revision}^{{commit}}");

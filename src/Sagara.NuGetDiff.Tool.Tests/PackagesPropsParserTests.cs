@@ -104,7 +104,8 @@ public class PackagesPropsParserTests
     [Fact]
     public void Parse_IgnoresLeadingByteOrderMark()
     {
-        IReadOnlyList<PackageVersionEntry> entries = PackagesPropsParser.Parse("﻿<Project><ItemGroup><PackageVersion Include=\"A\" Version=\"1.0.0\" /></ItemGroup></Project>");
+        // \uFEFF -> the byte order mark (BOM, ZERO WIDTH NO-BREAK SPACE). It's invisible, so it can't be shown here.
+        IReadOnlyList<PackageVersionEntry> entries = PackagesPropsParser.Parse("\uFEFF<Project><ItemGroup><PackageVersion Include=\"A\" Version=\"1.0.0\" /></ItemGroup></Project>");
 
         Assert.Single(entries);
     }

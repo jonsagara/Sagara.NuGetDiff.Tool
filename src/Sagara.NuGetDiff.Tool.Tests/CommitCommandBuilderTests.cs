@@ -46,7 +46,8 @@ public class CommitCommandBuilderTests
 
     [Theory]
     [InlineData(ShellKind.PowerShell, "Bob's update", "'Bob''s update'")]
-    [InlineData(ShellKind.PowerShell, "Bob’s update", "'Bob’’s update'")]
+    // \u2019 -> ’ (RIGHT SINGLE QUOTATION MARK), which PowerShell also treats as a single quote.
+    [InlineData(ShellKind.PowerShell, "Bob\u2019s update", "'Bob\u2019\u2019s update'")]
     [InlineData(ShellKind.PowerShell, "$(echo hi) `n", "'$(echo hi) `n'")]
     [InlineData(ShellKind.Posix, "Bob's update", @"'Bob'\''s update'")]
     [InlineData(ShellKind.Posix, "$(echo hi) `ls`", "'$(echo hi) `ls`'")]
