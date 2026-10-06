@@ -26,38 +26,51 @@ internal static partial class PackagesPropsParser
 
         // MSBuild evaluates every property before any item, so a version can reference a property declared
         //   anywhere in the file. Property conditions are ignored; the last definition wins.
-        Dictionary<string, string> properties = new(StringComparer.OrdinalIgnoreCase);
-        foreach (XElement property in ChildElements(root, "PropertyGroup").SelectMany(g => g.Elements()))
+        Dictionary<string, string> propertiesByLocalName = new(StringComparer.OrdinalIgnoreCase);
+        foreach (XElement propertyElement in GetChildElements(root, "PropertyGroup").SelectMany(g => g.Elements()))
         {
-            properties[property.Name.LocalName] = ExpandProperties(property.Value.Trim(), properties);
+            propertiesByLocalName[propertyElement.Name.LocalName] = ExpandProperties(propertyElement.Value.Trim(), propertiesByLocalName);
         }
 
+        // Loop through each <ItemGroup> element.
         List<PackageVersionEntry> entries = [];
-        foreach (XElement itemGroup in ChildElements(root, "ItemGroup"))
+        foreach (XElement itemGroupElements in GetChildElements(root, "ItemGroup"))
         {
-            string? groupCondition = NormalizeCondition(itemGroup.Attribute("Condition")?.Value);
+            string? groupCondition = NormalizeCondition(itemGroupElements.Attribute("Condition")?.Value);
 
-            foreach (XElement item in itemGroup.Elements().Where(e => PackageItemNames.Contains(e.Name.LocalName)))
+            // Loop through each <PackageVersion> or <GlobalPackageReference> element.
+            foreach (XElement itemElement in itemGroupElements.Elements().Where(e => PackageItemNames.Contains(e.Name.LocalName)))
             {
-                string? id = (item.Attribute("Include") ?? item.Attribute("Update"))?.Value.Trim();
-                string? version = item.Attribute("Version")?.Value ?? ChildElements(item, "Version").FirstOrDefault()?.Value;
+                // The package ID can be in the Include or Update attribute, and the version can be in the Version attribute or a child <Version> element.
+                string? id = (itemElement.Attribute("Include") ?? itemElement.Attribute("Update"))?.Value.Trim();
+                string? version = itemElement.Attribute("Version")?.Value ?? GetChildElements(itemElement, "Version").FirstOrDefault()?.Value;
+
                 if (string.IsNullOrEmpty(id) || version is null)
                 {
+                    // Skip elements that don't have a valid ID or version.
                     continue;
                 }
 
-                string? condition = CombineConditions(groupCondition, NormalizeCondition(item.Attribute("Condition")?.Value));
-                entries.Add(new PackageVersionEntry(id, condition, ExpandProperties(version.Trim(), properties)));
+                string? condition = CombineConditions(groupCondition: groupCondition, itemCondition: NormalizeCondition(itemElement.Attribute("Condition")?.Value));
+
+                entries.Add(new PackageVersionEntry(Id: id, Condition: condition, Version: ExpandProperties(version.Trim(), propertiesByLocalName)));
             }
         }
 
         return entries;
     }
 
-    private static IEnumerable<XElement> ChildElements(XElement parent, string localName)
+
+    //
+    // Private methods
+    //
+
+    private static IEnumerable<XElement> GetChildElements(XElement parentElement, string localName)
     {
         // Match on the local name so that files using the legacy MSBuild XML namespace also work.
-        return parent.Elements().Where(e => e.Name.LocalName == localName);
+        return parentElement
+            .Elements()
+            .Where(e => e.Name.LocalName == localName);
     }
 
     /// <summary>
@@ -71,6 +84,9 @@ internal static partial class PackagesPropsParser
             : match.Value);
     }
 
+    /// <summary>
+    /// Replaces multiple whitespace characters with a single space and trims the string. Returns null if the result is empty.
+    /// </summary>
     private static string? NormalizeCondition(string? condition)
     {
         return string.IsNullOrWhiteSpace(condition)
