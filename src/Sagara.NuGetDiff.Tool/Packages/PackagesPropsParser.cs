@@ -35,12 +35,12 @@ internal static partial class PackagesPropsParser
 
         // Loop through each <ItemGroup> element.
         List<PackageVersionEntry> entries = [];
-        foreach (XElement itemGroupElements in GetChildElements(root, "ItemGroup"))
+        foreach (XElement itemGroupElement in GetChildElements(root, "ItemGroup"))
         {
-            string? groupCondition = NormalizeCondition(itemGroupElements.Attribute("Condition")?.Value);
+            string? groupCondition = NormalizeCondition(itemGroupElement.Attribute("Condition")?.Value);
 
             // Loop through each <PackageVersion> or <GlobalPackageReference> element.
-            foreach (XElement itemElement in itemGroupElements.Elements().Where(e => PackageItemNames.Contains(e.Name.LocalName)))
+            foreach (XElement itemElement in itemGroupElement.Elements().Where(e => PackageItemNames.Contains(e.Name.LocalName)))
             {
                 // The package ID can be in the Include or Update attribute, and the version can be in the Version attribute or a child <Version> element.
                 string? id = (itemElement.Attribute("Include") ?? itemElement.Attribute("Update"))?.Value.Trim();

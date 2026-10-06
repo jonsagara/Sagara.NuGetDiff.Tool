@@ -115,8 +115,8 @@ static int Run(FileInfo? file, string from, string? to, bool staged, string subj
             return Fail($"{dirPackagePropsFilePath} exists in neither version being compared.");
         }
 
-        var oldPackagePropsEntries = PackagesPropsParser.Parse(oldDirPackagePropsFileXml);
-        var newPackagePropsEntries = PackagesPropsParser.Parse(newDirPackagePropsFileXml);
+        IReadOnlyList<PackageVersionEntry> oldPackagePropsEntries = PackagesPropsParser.Parse(oldDirPackagePropsFileXml);
+        IReadOnlyList<PackageVersionEntry> newPackagePropsEntries = PackagesPropsParser.Parse(newDirPackagePropsFileXml);
         PackageDiff diff = PackageDiffer.Diff(oldEntries: oldPackagePropsEntries, newEntries: newPackagePropsEntries);
 
         if (diff.IsEmpty)
@@ -131,7 +131,7 @@ static int Run(FileInfo? file, string from, string? to, bool staged, string subj
             ? null
             : Path.GetRelativePath(relativeTo: currentDirectory, path: dirPackagePropsFilePath).Replace('\\', '/');
 
-        var gitCommitCommandParagraphs = CommitCommandBuilder.BuildParagraphs(diff: diff, subject: subject);
+        IReadOnlyList<string> gitCommitCommandParagraphs =CommitCommandBuilder.BuildParagraphs(diff: diff, subject: subject);
         string gitCommandText = CommitCommandBuilder.BuildGitCommandText(paragraphs: gitCommitCommandParagraphs, pathspec: pathspec, shell: shell);
         Console.WriteLine(gitCommandText);
 

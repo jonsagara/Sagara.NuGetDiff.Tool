@@ -29,7 +29,7 @@ internal static class PackageDiffer
         List<PackageChange> added = [];
         List<PackageChange> removed = [];
 
-        foreach (var newEntryKvp in newEntriesByIdAndCondition)
+        foreach (KeyValuePair<PackageIdAndCondition, PackageVersionEntry> newEntryKvp in newEntriesByIdAndCondition)
         {
             PackageVersionEntry newEntry = newEntryKvp.Value;
 
@@ -41,7 +41,7 @@ internal static class PackageDiffer
             }
 
             // We have both an old and new entry for this package; compare the versions to determine the type of change.
-            var versionChange = CompareVersions(oldVersion: oldEntry.Version, newVersion: newEntry.Version);
+            VersionChange versionChange = CompareVersions(oldVersion: oldEntry.Version, newVersion: newEntry.Version);
 
             // Track upgrades, downgrades, and unordered changes. We don't track unchanged packages.
             List<PackageChange>? target = versionChange switch
@@ -55,7 +55,7 @@ internal static class PackageDiffer
             target?.Add(new PackageChange(Id: newEntry.Id, Condition: newEntry.Condition, OldVersion: oldEntry.Version, NewVersion: newEntry.Version));
         }
 
-        foreach (var oldEntryKvp in oldEntriesByIdAndCondition)
+        foreach (KeyValuePair<PackageIdAndCondition, PackageVersionEntry> oldEntryKvp in oldEntriesByIdAndCondition)
         {
             if (!newEntriesByIdAndCondition.ContainsKey(oldEntryKvp.Key))
             {
@@ -85,7 +85,7 @@ internal static class PackageDiffer
 
         foreach (PackageVersionEntry entry in entries)
         {
-            var idAndConditionKey = new PackageIdAndCondition(
+            PackageIdAndCondition idAndConditionKey = new(
                 Id: entry.Id.ToUpperInvariant(),
                 Condition: entry.Condition ?? string.Empty);
 

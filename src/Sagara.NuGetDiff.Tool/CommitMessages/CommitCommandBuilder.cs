@@ -17,6 +17,7 @@ internal static class CommitCommandBuilder
     public static IReadOnlyList<string> BuildParagraphs(PackageDiff diff, string subject)
     {
         ArgumentNullException.ThrowIfNull(diff);
+        ArgumentNullException.ThrowIfNull(subject);
 
         List<string> paragraphs = [subject];
 
@@ -80,7 +81,7 @@ internal static class CommitCommandBuilder
                 .Append(' ')
                 .Append(formatVersion(change));
 
-            // Condition, if any, e.g. " [$(TargetFramework) == 'net6.0']".
+            // Condition, if any, e.g. " ['$(TargetFramework)' == 'net10.0']".
             if (change.Condition is not null)
             {
                 section

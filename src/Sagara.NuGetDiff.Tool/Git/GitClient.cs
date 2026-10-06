@@ -21,7 +21,7 @@ internal static class GitClient
     {
         // Show the absolute path of the top-level directory of the working tree.
         // If there is no working tree, report an error.
-        var repositoryRoot = RunGitCommand(workingDirectory: workingDirectory, "rev-parse", "--show-toplevel");
+        string repositoryRoot = RunGitCommand(workingDirectory: workingDirectory, "rev-parse", "--show-toplevel");
 
         return Path.GetFullPath(repositoryRoot.Trim());
     }
@@ -39,7 +39,7 @@ internal static class GitClient
         //   but we ignore it; we only care about the exit code.
         // * revision^{commit}: Dereference the revision to a commit object. If the revision is a tag, this will resolve it to the
         //   commit it points to.
-        var callGitResult = CallGitExecutable(workingDirectory: workingDirectory, "rev-parse", "--verify", "--quiet", $"{revision}^{{commit}}");
+        CallGitResult callGitResult = CallGitExecutable(workingDirectory: workingDirectory, "rev-parse", "--verify", "--quiet", $"{revision}^{{commit}}");
 
         if (callGitResult.ExitCode != 0)
         {
@@ -76,10 +76,10 @@ internal static class GitClient
         string directory = Path.GetDirectoryName(fullPath)!;
         string objectName = $"{revisionPrefix}./{Path.GetFileName(fullPath)}";
 
-        // Check if the git object exists before trying to read it; git will throw an error if it doesn't,
-        //   and we want to return null instead of throwing.
-        var callGitResult = CallGitExecutable(directory, "cat-file", "-e", objectName);
-        var gitObjectExists = callGitResult.ExitCode == 0;
+        // Check if the git object exists before trying to read it. If it doesn't, git show exits with a non-zero
+        //   code and RunGitCommand throws, but we want to return null instead.
+        CallGitResult callGitResult = CallGitExecutable(directory, "cat-file", "-e", objectName);
+        bool gitObjectExists = callGitResult.ExitCode == 0;
 
         return gitObjectExists
             ? RunGitCommand(workingDirectory: directory, "show", objectName)
@@ -93,7 +93,7 @@ internal static class GitClient
     /// <exception cref="GitException"></exception>
     private static string RunGitCommand(string workingDirectory, params string[] arguments)
     {
-        var callGitResult = CallGitExecutable(workingDirectory, arguments);
+        CallGitResult callGitResult = CallGitExecutable(workingDirectory, arguments);
 
         if (callGitResult.ExitCode == 0)
         {
