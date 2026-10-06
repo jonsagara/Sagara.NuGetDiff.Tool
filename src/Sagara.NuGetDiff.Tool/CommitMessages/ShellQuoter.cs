@@ -1,3 +1,5 @@
+using Sagara.NuGetDiff.Tool.Constants;
+
 namespace Sagara.NuGetDiff.Tool.CommitMessages;
 
 /// <summary>
@@ -15,11 +17,12 @@ public enum ShellKind
 internal static class ShellQuoter
 {
     // PowerShell treats the typographic single quotes as quote characters, too:
-    //   \u2018 -> ‘ (LEFT SINGLE QUOTATION MARK)
-    //   \u2019 -> ’ (RIGHT SINGLE QUOTATION MARK)
-    //   \u201A -> ‚ (SINGLE LOW-9 QUOTATION MARK)
-    //   \u201B -> ‛ (SINGLE HIGH-REVERSED-9 QUOTATION MARK)
-    private static readonly char[] PowerShellSingleQuotes = ['\'', '\u2018', '\u2019', '\u201A', '\u201B'];
+    private static readonly char[] PowerShellSingleQuotes = [
+        Chars.SingleQuote,
+        Chars.LeftSingleQuote,
+        Chars.RightSingleQuote,
+        Chars.SingleLow9Quote,
+        Chars.SingleHighReversed9Quote];
 
     /// <summary>
     /// PowerShell on Windows, unless running under Git Bash/MSYS2 (which sets MSYSTEM); POSIX everywhere else.

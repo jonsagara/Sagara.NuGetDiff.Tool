@@ -1,5 +1,6 @@
 using System.Text.RegularExpressions;
 using System.Xml.Linq;
+using Sagara.NuGetDiff.Tool.Constants;
 
 namespace Sagara.NuGetDiff.Tool.Packages;
 
@@ -21,8 +22,8 @@ internal static partial class PackagesPropsParser
             return [];
         }
 
-        // \uFEFF -> the byte order mark (BOM, ZERO WIDTH NO-BREAK SPACE). It's invisible, so it can't be shown here.
-        XElement root = XDocument.Parse(dirPackagesPropsXml.TrimStart('\uFEFF')).Root
+        // The UNICODE BOM is not valid XML and must be removed before parsing.
+        XElement root = XDocument.Parse(dirPackagesPropsXml.TrimStart(Chars.UnicodeBOM)).Root
             ?? throw new InvalidDataException("The file has no root element.");
 
         // MSBuild evaluates every property before any item, so a version can reference a property declared
