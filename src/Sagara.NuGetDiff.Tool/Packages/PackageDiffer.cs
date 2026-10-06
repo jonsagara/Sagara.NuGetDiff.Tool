@@ -20,8 +20,8 @@ internal static class PackageDiffer
         ArgumentNullException.ThrowIfNull(oldEntries);
         ArgumentNullException.ThrowIfNull(newEntries);
 
-        Dictionary<(string Id, string Condition), PackageVersionEntry> oldByKey = ToDictionary(oldEntries);
-        Dictionary<(string Id, string Condition), PackageVersionEntry> newByKey = ToDictionary(newEntries);
+        Dictionary<PackageIdAndCondition, PackageVersionEntry> oldEntriesByIdAndCondition = GroupEntriesByIdAndCondition(oldEntries);
+        Dictionary<PackageIdAndCondition, PackageVersionEntry> newEntriesByIdAndCondition = GroupEntriesByIdAndCondition(newEntries);
 
         List<PackageChange> upgraded = [];
         List<PackageChange> downgraded = [];
@@ -29,17 +29,22 @@ internal static class PackageDiffer
         List<PackageChange> added = [];
         List<PackageChange> removed = [];
 
-        foreach (KeyValuePair<(string Id, string Condition), PackageVersionEntry> pair in newByKey)
+        foreach (var newEntryKvp in newEntriesByIdAndCondition)
         {
-            PackageVersionEntry newEntry = pair.Value;
+            PackageVersionEntry newEntry = newEntryKvp.Value;
 
-            if (!oldByKey.TryGetValue(pair.Key, out PackageVersionEntry? oldEntry))
+            if (!oldEntriesByIdAndCondition.TryGetValue(newEntryKvp.Key, out PackageVersionEntry? oldEntry))
             {
-                added.Add(new PackageChange(newEntry.Id, newEntry.Condition, OldVersion: null, newEntry.Version));
+                // There is no old entry for this package; it is newly added to Directory.Build.props.
+                added.Add(new PackageChange(Id: newEntry.Id, Condition: newEntry.Condition, OldVersion: null, NewVersion: newEntry.Version));
                 continue;
             }
 
-            List<PackageChange>? target = CompareVersions(oldEntry.Version, newEntry.Version) switch
+            // We have both an old and new entry for this package; compare the versions to determine the type of change.
+            var versionChange = CompareVersions(oldVersion: oldEntry.Version, newVersion: newEntry.Version);
+
+            // Track upgrades, downgrades, and unordered changes. We don't track unchanged packages.
+            List<PackageChange>? target = versionChange switch
             {
                 VersionChange.Upgrade => upgraded,
                 VersionChange.Downgrade => downgraded,
@@ -47,31 +52,47 @@ internal static class PackageDiffer
                 _ => null,
             };
 
-            target?.Add(new PackageChange(newEntry.Id, newEntry.Condition, oldEntry.Version, newEntry.Version));
+            target?.Add(new PackageChange(Id: newEntry.Id, Condition: newEntry.Condition, OldVersion: oldEntry.Version, NewVersion: newEntry.Version));
         }
 
-        foreach (KeyValuePair<(string Id, string Condition), PackageVersionEntry> pair in oldByKey)
+        foreach (var oldEntryKvp in oldEntriesByIdAndCondition)
         {
-            if (!newByKey.ContainsKey(pair.Key))
+            if (!newEntriesByIdAndCondition.ContainsKey(oldEntryKvp.Key))
             {
-                removed.Add(new PackageChange(pair.Value.Id, pair.Value.Condition, pair.Value.Version, NewVersion: null));
+                // There is no new entry for this package; it has been removed from Directory.Build.props.
+                removed.Add(new PackageChange(Id: oldEntryKvp.Value.Id, Condition: oldEntryKvp.Value.Condition, OldVersion: oldEntryKvp.Value.Version, NewVersion: null));
             }
         }
 
-        return new PackageDiff(Sort(upgraded), Sort(downgraded), Sort(changed), Sort(added), Sort(removed));
+        return new PackageDiff(
+            Upgraded: OrderByIdThenCondition(upgraded),
+            Downgraded: OrderByIdThenCondition(downgraded),
+            Changed: OrderByIdThenCondition(changed),
+            Added: OrderByIdThenCondition(added),
+            Removed: OrderByIdThenCondition(removed));
     }
 
-    private static Dictionary<(string Id, string Condition), PackageVersionEntry> ToDictionary(IReadOnlyList<PackageVersionEntry> entries)
+
+    //
+    // Private methods
+    //
+
+    private static Dictionary<PackageIdAndCondition, PackageVersionEntry> GroupEntriesByIdAndCondition(IReadOnlyList<PackageVersionEntry> entries)
     {
         // NuGet package IDs are case-insensitive. If a package is declared twice with the same condition, the
         //   last declaration wins, as it does in MSBuild.
-        Dictionary<(string Id, string Condition), PackageVersionEntry> byKey = [];
+        Dictionary<PackageIdAndCondition, PackageVersionEntry> entriesByIdAndCondition = [];
+
         foreach (PackageVersionEntry entry in entries)
         {
-            byKey[(entry.Id.ToUpperInvariant(), entry.Condition ?? string.Empty)] = entry;
+            var idAndConditionKey = new PackageIdAndCondition(
+                Id: entry.Id.ToUpperInvariant(),
+                Condition: entry.Condition ?? string.Empty);
+
+            entriesByIdAndCondition[idAndConditionKey] = entry;
         }
 
-        return byKey;
+        return entriesByIdAndCondition;
     }
 
     private static VersionChange CompareVersions(string oldVersion, string newVersion)
@@ -81,20 +102,34 @@ internal static class PackageDiffer
             int comparison = VersionComparer.Default.Compare(oldNuGetVersion, newNuGetVersion);
             if (comparison != 0)
             {
-                return comparison < 0 ? VersionChange.Upgrade : VersionChange.Downgrade;
+                return comparison < 0
+                    ? VersionChange.Upgrade
+                    : VersionChange.Downgrade;
             }
 
             // Equivalent versions written differently (1.0 vs. 1.0.0) are not a change, but different build metadata is.
-            return VersionComparer.VersionReleaseMetadata.Equals(oldNuGetVersion, newNuGetVersion) ? VersionChange.None : VersionChange.Unordered;
+            return VersionComparer.VersionReleaseMetadata.Equals(oldNuGetVersion, newNuGetVersion)
+                ? VersionChange.None
+                : VersionChange.Unordered;
         }
-
-        return string.Equals(oldVersion, newVersion, StringComparison.OrdinalIgnoreCase) ? VersionChange.None : VersionChange.Unordered;
+        
+        // If we can't parse the versions as NuGet versions, fall back to a case-insensitive string comparison.
+        return string.Equals(oldVersion, newVersion, StringComparison.OrdinalIgnoreCase)
+            ? VersionChange.None
+            : VersionChange.Unordered;
     }
 
-    private static List<PackageChange> Sort(List<PackageChange> changes)
+    private static List<PackageChange> OrderByIdThenCondition(List<PackageChange> changes)
     {
         return [.. changes
             .OrderBy(c => c.Id, StringComparer.OrdinalIgnoreCase)
             .ThenBy(c => c.Condition, StringComparer.Ordinal)];
     }
+
+
+    //
+    // Types
+    //
+
+    private readonly record struct PackageIdAndCondition(string Id, string Condition);
 }
