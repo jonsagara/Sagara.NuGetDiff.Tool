@@ -7,7 +7,11 @@ namespace Sagara.NuGetDiff.Tool.Packages;
 /// <param name="Condition">The MSBuild condition that applies to the item, or null if it is unconditional.</param>
 /// <param name="OldVersion">The previous version, or null if the package was added.</param>
 /// <param name="NewVersion">The new version, or null if the package was removed.</param>
-internal sealed record PackageChange(string Id, string? Condition, string? OldVersion, string? NewVersion);
+internal sealed record PackageChange(
+    string Id,
+    string? Condition,
+    string? OldVersion,
+    string? NewVersion);
 
 /// <summary>
 /// The package changes between two versions of Directory.Packages.props. Each list is sorted by package ID.
@@ -24,5 +28,10 @@ internal sealed record PackageDiff(
     IReadOnlyList<PackageChange> Added,
     IReadOnlyList<PackageChange> Removed)
 {
-    public bool IsEmpty => Upgraded.Count == 0 && Downgraded.Count == 0 && Changed.Count == 0 && Added.Count == 0 && Removed.Count == 0;
+    public bool IsEmpty =>
+        Upgraded.Count == 0
+        && Downgraded.Count == 0
+        && Changed.Count == 0
+        && Added.Count == 0
+        && Removed.Count == 0;
 }

@@ -16,6 +16,8 @@ internal static class CommitCommandBuilder
     /// </summary>
     public static IReadOnlyList<string> BuildParagraphs(PackageDiff diff, string subject)
     {
+        ArgumentNullException.ThrowIfNull(diff);
+
         List<string> paragraphs = [subject];
 
         AddSection(paragraphs, header: "Upgraded", changes: diff.Upgraded, formatVersion: c => $"{c.OldVersion} -> {c.NewVersion}");
@@ -36,6 +38,8 @@ internal static class CommitCommandBuilder
     /// <param name="shell">The shell to quote arguments for.</param>
     public static string BuildGitCommandText(IReadOnlyList<string> paragraphs, string? pathspec, ShellKind shell)
     {
+        ArgumentNullException.ThrowIfNull(paragraphs);
+
         StringBuilder command = new("git commit");
 
         foreach (string paragraph in paragraphs)
@@ -51,6 +55,11 @@ internal static class CommitCommandBuilder
         return command.ToString();
     }
 
+
+    //
+    // Private methods
+    //
+
     private static void AddSection(List<string> paragraphs, string header, IReadOnlyList<PackageChange> changes, Func<PackageChange, string?> formatVersion)
     {
         if (changes.Count == 0)
@@ -62,11 +71,22 @@ internal static class CommitCommandBuilder
 
         foreach (PackageChange change in changes)
         {
-            section.Append('\n').Append(change.Id).Append(' ').Append(formatVersion(change));
+            // Newline before each package.
+            section.Append('\n');
 
+            // Package Id and formatted version change, e.g. "Newtonsoft.Json 12.0.3 -> 13.0.1".
+            section
+                .Append(change.Id)
+                .Append(' ')
+                .Append(formatVersion(change));
+
+            // Condition, if any, e.g. " [$(TargetFramework) == 'net6.0']".
             if (change.Condition is not null)
             {
-                section.Append(" [").Append(change.Condition).Append(']');
+                section
+                    .Append(" [")
+                    .Append(change.Condition)
+                    .Append(']');
             }
         }
 
