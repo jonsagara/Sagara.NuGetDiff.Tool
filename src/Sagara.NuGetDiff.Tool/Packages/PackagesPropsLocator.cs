@@ -17,22 +17,31 @@ internal static class PackagesPropsLocator
     /// </summary>
     public static string? Find(string startDirectory, string repositoryRoot)
     {
-        string root = Path.TrimEndingDirectorySeparator(Path.GetFullPath(repositoryRoot));
+        // Get the full path of the start directory.
+        string startDirFullPath = Path.GetFullPath(startDirectory);
 
-        for (DirectoryInfo? directory = new(Path.GetFullPath(startDirectory)); directory is not null; directory = directory.Parent)
+        // Get the full path of the repository root and trim any trailing directory separator to ensure
+        //   consistent comparison.
+        string repoRootFullPath = Path.TrimEndingDirectorySeparator(Path.GetFullPath(repositoryRoot));
+
+        for (DirectoryInfo? directory = new(startDirFullPath); directory is not null; directory = directory.Parent)
         {
-            string candidate = Path.Combine(directory.FullName, FileName);
-            if (File.Exists(candidate))
+            string candidateDirPackagesPropsFilePath = Path.Combine(directory.FullName, FileName);
+
+            if (File.Exists(candidateDirPackagesPropsFilePath))
             {
-                return candidate;
+                // Found a Directory.Packages.props file; return its path.
+                return candidateDirPackagesPropsFilePath;
             }
 
-            if (string.Equals(Path.TrimEndingDirectorySeparator(directory.FullName), root, PathComparison))
+            if (string.Equals(Path.TrimEndingDirectorySeparator(directory.FullName), repoRootFullPath, PathComparison))
             {
+                // We've reached the repository root; stop searching.
                 break;
             }
         }
 
+        // No Directory.Packages.props file was found between the start directory and the repository root.
         return null;
     }
 }

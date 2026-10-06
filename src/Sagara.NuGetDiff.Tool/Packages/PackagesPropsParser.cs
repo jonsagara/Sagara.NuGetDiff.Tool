@@ -14,14 +14,14 @@ internal static partial class PackagesPropsParser
     /// Parses the package versions out of the file contents. Null or empty contents (e.g., the file does
     /// not exist at a given revision) yield no packages.
     /// </summary>
-    public static IReadOnlyList<PackageVersionEntry> Parse(string? xml)
+    public static IReadOnlyList<PackageVersionEntry> Parse(string? dirPackagesPropsXml)
     {
-        if (string.IsNullOrWhiteSpace(xml))
+        if (string.IsNullOrWhiteSpace(dirPackagesPropsXml))
         {
             return [];
         }
 
-        XElement root = XDocument.Parse(xml.TrimStart('﻿')).Root
+        XElement root = XDocument.Parse(dirPackagesPropsXml.TrimStart('﻿')).Root
             ?? throw new InvalidDataException("The file has no root element.");
 
         // MSBuild evaluates every property before any item, so a version can reference a property declared
