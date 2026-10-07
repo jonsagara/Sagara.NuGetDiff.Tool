@@ -7,7 +7,7 @@ namespace Sagara.NuGetDiff.Tool.Tests;
 /// <summary>
 /// Runs the real git CLI against a temporary repository.
 /// </summary>
-public sealed class GitClientTests : IDisposable
+public sealed class GitClientTests : IAsyncLifetime
 {
     private readonly DirectoryInfo _repository = Directory.CreateTempSubdirectory("nuget-diff-tests-");
     private readonly string _propsPath;
@@ -15,21 +15,26 @@ public sealed class GitClientTests : IDisposable
     public GitClientTests()
     {
         _propsPath = Path.Combine(_repository.FullName, PackagesPropsLocator.FileName);
-        Git("init", "--quiet");
+    }
+
+    public async ValueTask InitializeAsync()
+    {
+        await GitAsync("init", "--quiet");
     }
 
     [Fact]
-    public void DiffsCommittedFileAgainstWorkingTreeAndIndex()
+    public async Task DiffsCommittedFileAgainstWorkingTreeAndIndex()
     {
         WriteProps(("Serilog", "4.2.0"), ("Newtonsoft.Json", "13.0.3"));
-        Commit();
+        await CommitAsync();
 
         WriteProps(("Serilog", "4.3.0"), ("Polly", "8.5.0"));
-        Git("add", PackagesPropsLocator.FileName);
+        await GitAsync("add", PackagesPropsLocator.FileName);
         WriteProps(("Serilog", "4.4.0"));
 
-        PackageDiff staged = Diff(GitClient.TryReadFileAtRevision(_propsPath, "HEAD"), GitClient.TryReadStagedFile(_propsPath));
-        PackageDiff workingTree = Diff(GitClient.TryReadFileAtRevision(_propsPath, "HEAD"), File.ReadAllText(_propsPath));
+        string? headXml = await GitClient.TryReadFileAtRevisionAsync(_propsPath, "HEAD", CancellationToken);
+        PackageDiff staged = Diff(headXml, await GitClient.TryReadStagedFileAsync(_propsPath, CancellationToken));
+        PackageDiff workingTree = Diff(headXml, File.ReadAllText(_propsPath));
 
         Assert.Equal([new PackageChange("Serilog", null, "4.2.0", "4.3.0")], staged.Upgraded);
         Assert.Equal([new PackageChange("Polly", null, null, "8.5.0")], staged.Added);
@@ -40,37 +45,37 @@ public sealed class GitClientTests : IDisposable
     }
 
     [Fact]
-    public void TryReadFileAtRevision_FileNotInRevision_ReturnsNull()
+    public async Task TryReadFileAtRevision_FileNotInRevision_ReturnsNull()
     {
         File.WriteAllText(Path.Combine(_repository.FullName, "other.txt"), "x");
-        Commit();
+        await CommitAsync();
         WriteProps(("Serilog", "4.2.0"));
 
-        Assert.Null(GitClient.TryReadFileAtRevision(_propsPath, "HEAD"));
+        Assert.Null(await GitClient.TryReadFileAtRevisionAsync(_propsPath, "HEAD", CancellationToken));
     }
 
     [Fact]
-    public void VerifyRevision_UnknownRevision_Throws()
+    public async Task VerifyRevision_UnknownRevision_Throws()
     {
         WriteProps(("Serilog", "4.2.0"));
-        Commit();
+        await CommitAsync();
 
-        GitClient.VerifyRevision(_repository.FullName, "HEAD");
-        Assert.Throws<GitException>(() => GitClient.VerifyRevision(_repository.FullName, "no-such-branch"));
+        await GitClient.VerifyRevisionAsync(_repository.FullName, "HEAD", CancellationToken);
+        await Assert.ThrowsAsync<GitException>(() => GitClient.VerifyRevisionAsync(_repository.FullName, "no-such-branch", CancellationToken));
     }
 
     [Fact]
-    public void Locator_FindsPropsFileInAncestorDirectory()
+    public async Task Locator_FindsPropsFileInAncestorDirectory()
     {
         WriteProps(("Serilog", "4.2.0"));
         DirectoryInfo nested = _repository.CreateSubdirectory(Path.Combine("src", "App"));
 
-        string repositoryRoot = GitClient.GetRepositoryRoot(nested.FullName);
+        string repositoryRoot = await GitClient.GetRepositoryRootAsync(nested.FullName, CancellationToken);
 
         Assert.Equal(_propsPath, PackagesPropsLocator.Find(nested.FullName, repositoryRoot), ignoreCase: OperatingSystem.IsWindows());
     }
 
-    public void Dispose()
+    public ValueTask DisposeAsync()
     {
         // git makes its object files read-only, which Directory.Delete refuses to remove on Windows.
         foreach (FileInfo file in _repository.EnumerateFiles("*", SearchOption.AllDirectories))
@@ -79,7 +84,11 @@ public sealed class GitClientTests : IDisposable
         }
 
         _repository.Delete(recursive: true);
+
+        return ValueTask.CompletedTask;
     }
+
+    private static CancellationToken CancellationToken => TestContext.Current.CancellationToken;
 
     private static PackageDiff Diff(string? oldXml, string? newXml)
     {
@@ -101,13 +110,13 @@ public sealed class GitClientTests : IDisposable
             """);
     }
 
-    private void Commit()
+    private async Task CommitAsync()
     {
-        Git("add", "--all");
-        Git("-c", "user.name=Test", "-c", "user.email=test@example.com", "-c", "commit.gpgsign=false", "commit", "--quiet", "-m", "Test");
+        await GitAsync("add", "--all");
+        await GitAsync("-c", "user.name=Test", "-c", "user.email=test@example.com", "-c", "commit.gpgsign=false", "commit", "--quiet", "-m", "Test");
     }
 
-    private void Git(params string[] arguments)
+    private async Task GitAsync(params string[] arguments)
     {
         ProcessStartInfo startInfo = new("git")
         {
@@ -123,10 +132,11 @@ public sealed class GitClientTests : IDisposable
         }
 
         using Process process = Process.Start(startInfo)!;
-        Task<string> standardErrorTask = process.StandardError.ReadToEndAsync();
-        process.StandardOutput.ReadToEnd();
-        string standardError = standardErrorTask.GetAwaiter().GetResult();
-        process.WaitForExit();
+        Task<string> standardOutputTask = process.StandardOutput.ReadToEndAsync(CancellationToken);
+        Task<string> standardErrorTask = process.StandardError.ReadToEndAsync(CancellationToken);
+        await standardOutputTask;
+        string standardError = await standardErrorTask;
+        await process.WaitForExitAsync(CancellationToken);
 
         Assert.True(process.ExitCode == 0, $"git {string.Join(' ', arguments)} failed: {standardError}");
     }

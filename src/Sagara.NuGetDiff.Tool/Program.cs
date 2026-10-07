@@ -60,18 +60,20 @@ RootCommand rootCommand = new($"Builds a git commit command listing the NuGet pa
     noClipboardOption,
 };
 
+// System.CommandLine cancels the token when the user presses Ctrl+C.
 rootCommand.SetAction(
-    parseResult => 
-        Run(
+    (parseResult, cancellationToken) =>
+        RunAsync(
             file: parseResult.GetValue(fileOption),
             from: parseResult.GetValue(fromOption)!,
             to: parseResult.GetValue(toOption),
             staged: parseResult.GetValue(stagedOption),
             subject: parseResult.GetValue(subjectOption)!,
             shell: parseResult.GetValue(shellOption),
-            noClipboard: parseResult.GetValue(noClipboardOption)));
+            noClipboard: parseResult.GetValue(noClipboardOption),
+            cancellationToken: cancellationToken));
 
-return rootCommand.Parse(args).Invoke();
+return await rootCommand.Parse(args).InvokeAsync();
 
 
 //
@@ -81,7 +83,7 @@ return rootCommand.Parse(args).Invoke();
 /// <summary>
 /// Runs the main application logic.
 /// </summary>
-static int Run(FileInfo? file, string from, string? to, bool staged, string subject, ShellKind shell, bool noClipboard)
+static async Task<int> RunAsync(FileInfo? file, string from, string? to, bool staged, string subject, ShellKind shell, bool noClipboard, CancellationToken cancellationToken)
 {
     if (staged && to is not null)
     {
@@ -91,7 +93,7 @@ static int Run(FileInfo? file, string from, string? to, bool staged, string subj
     try
     {
         string currentDirectory = Environment.CurrentDirectory;
-        string repositoryRoot = GitClient.GetRepositoryRoot(workingDirectory: currentDirectory);
+        string repositoryRoot = await GitClient.GetRepositoryRootAsync(workingDirectory: currentDirectory, cancellationToken: cancellationToken);
 
         // Try to locate Directory.Packages.props file in the repository, starting at the current directory and
         //   walking up to the repository root. If the user specified a file, use that instead.
@@ -101,14 +103,14 @@ static int Run(FileInfo? file, string from, string? to, bool staged, string subj
             return Fail($"Could not find {PackagesPropsLocator.FileName} between the current directory and the repository root. Use --file to specify it.");
         }
 
-        GitClient.VerifyRevision(workingDirectory: repositoryRoot, revision: from);
+        await GitClient.VerifyRevisionAsync(workingDirectory: repositoryRoot, revision: from, cancellationToken: cancellationToken);
         if (to is not null)
         {
-            GitClient.VerifyRevision(workingDirectory: repositoryRoot, revision: to);
+            await GitClient.VerifyRevisionAsync(workingDirectory: repositoryRoot, revision: to, cancellationToken: cancellationToken);
         }
 
-        string? oldDirPackagePropsFileXml = GitClient.TryReadFileAtRevision(filePath: dirPackagePropsFilePath, revision: from);
-        string? newDirPackagePropsFileXml = ReadNewDirPackagePropsFileXml(dirPackagePropsFilePath: dirPackagePropsFilePath, to: to, staged: staged);
+        string? oldDirPackagePropsFileXml = await GitClient.TryReadFileAtRevisionAsync(filePath: dirPackagePropsFilePath, revision: from, cancellationToken: cancellationToken);
+        string? newDirPackagePropsFileXml = await ReadNewDirPackagePropsFileXmlAsync(dirPackagePropsFilePath: dirPackagePropsFilePath, to: to, staged: staged, cancellationToken: cancellationToken);
 
         if (oldDirPackagePropsFileXml is null && newDirPackagePropsFileXml is null)
         {
@@ -156,21 +158,21 @@ static int Run(FileInfo? file, string from, string? to, bool staged, string subj
 /// Reads the version of Directory.Packages.props being compared to: the staged file, the file at the --to
 /// revision, or the working tree file, in that order. Returns null if the file doesn't exist there.
 /// </summary>
-static string? ReadNewDirPackagePropsFileXml(string dirPackagePropsFilePath, string? to, bool staged)
+static async Task<string?> ReadNewDirPackagePropsFileXmlAsync(string dirPackagePropsFilePath, string? to, bool staged, CancellationToken cancellationToken)
 {
     if (staged)
     {
-        return GitClient.TryReadStagedFile(filePath: dirPackagePropsFilePath);
+        return await GitClient.TryReadStagedFileAsync(filePath: dirPackagePropsFilePath, cancellationToken: cancellationToken);
     }
 
     if (to is not null)
     {
-        return GitClient.TryReadFileAtRevision(filePath: dirPackagePropsFilePath, revision: to);
+        return await GitClient.TryReadFileAtRevisionAsync(filePath: dirPackagePropsFilePath, revision: to, cancellationToken: cancellationToken);
     }
 
     if (File.Exists(dirPackagePropsFilePath))
     {
-        return File.ReadAllText(dirPackagePropsFilePath);
+        return await File.ReadAllTextAsync(dirPackagePropsFilePath, cancellationToken);
     }
 
     // The file was deleted from the working tree.

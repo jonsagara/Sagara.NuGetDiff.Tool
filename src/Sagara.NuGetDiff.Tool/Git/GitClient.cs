@@ -17,11 +17,11 @@ internal static class GitClient
     /// <summary>
     /// Returns the root of the working tree that contains <paramref name="workingDirectory"/>.
     /// </summary>
-    public static string GetRepositoryRoot(string workingDirectory)
+    public static async Task<string> GetRepositoryRootAsync(string workingDirectory, CancellationToken cancellationToken)
     {
         // Show the absolute path of the top-level directory of the working tree.
         // If there is no working tree, report an error.
-        string repositoryRoot = RunGitCommand(workingDirectory: workingDirectory, "rev-parse", "--show-toplevel");
+        string repositoryRoot = await RunGitCommandAsync(workingDirectory: workingDirectory, cancellationToken, "rev-parse", "--show-toplevel");
 
         return Path.GetFullPath(repositoryRoot.Trim());
     }
@@ -29,7 +29,7 @@ internal static class GitClient
     /// <summary>
     /// Throws a <see cref="GitException"/> if <paramref name="revision"/> does not name a commit.
     /// </summary>
-    public static void VerifyRevision(string workingDirectory, string revision)
+    public static async Task VerifyRevisionAsync(string workingDirectory, string revision, CancellationToken cancellationToken)
     {
         // Safely checks whether the reference or short hash "revision" points to a valid commit object (or can be dereferenced to one),
         //   printing the full commit hash if it exists and failing silently if it does not.
@@ -39,7 +39,7 @@ internal static class GitClient
         //   but we ignore it; we only care about the exit code.
         // * revision^{commit}: Dereference the revision to a commit object. If the revision is a tag, this will resolve it to the
         //   commit it points to.
-        CallGitResult callGitResult = CallGitExecutable(workingDirectory: workingDirectory, "rev-parse", "--verify", "--quiet", $"{revision}^{{commit}}");
+        CallGitResult callGitResult = await CallGitExecutableAsync(workingDirectory: workingDirectory, cancellationToken, "rev-parse", "--verify", "--quiet", $"{revision}^{{commit}}");
 
         if (callGitResult.ExitCode != 0)
         {
@@ -50,17 +50,17 @@ internal static class GitClient
     /// <summary>
     /// Returns the contents of the file at the given revision, or null if it did not exist at that revision.
     /// </summary>
-    public static string? TryReadFileAtRevision(string filePath, string revision)
+    public static Task<string?> TryReadFileAtRevisionAsync(string filePath, string revision, CancellationToken cancellationToken)
     {
-        return TryReadObject(filePath: filePath, revisionPrefix: $"{revision}:");
+        return TryReadObjectAsync(filePath: filePath, revisionPrefix: $"{revision}:", cancellationToken);
     }
 
     /// <summary>
     /// Returns the staged contents of the file, or null if it is not in the index.
     /// </summary>
-    public static string? TryReadStagedFile(string filePath)
+    public static Task<string?> TryReadStagedFileAsync(string filePath, CancellationToken cancellationToken)
     {
-        return TryReadObject(filePath: filePath, revisionPrefix: ":");
+        return TryReadObjectAsync(filePath: filePath, revisionPrefix: ":", cancellationToken);
     }
 
 
@@ -68,7 +68,7 @@ internal static class GitClient
     // Private methods
     //
 
-    private static string? TryReadObject(string filePath, string revisionPrefix)
+    private static async Task<string?> TryReadObjectAsync(string filePath, string revisionPrefix, CancellationToken cancellationToken)
     {
         // A path starting with ./ is resolved relative to the current directory, so run git from the file's
         //   directory rather than working out its path relative to the repository root.
@@ -77,12 +77,12 @@ internal static class GitClient
         string objectName = $"{revisionPrefix}./{Path.GetFileName(fullPath)}";
 
         // Check if the git object exists before trying to read it. If it doesn't, git show exits with a non-zero
-        //   code and RunGitCommand throws, but we want to return null instead.
-        CallGitResult callGitResult = CallGitExecutable(directory, "cat-file", "-e", objectName);
+        //   code and RunGitCommandAsync throws, but we want to return null instead.
+        CallGitResult callGitResult = await CallGitExecutableAsync(directory, cancellationToken, "cat-file", "-e", objectName);
         bool gitObjectExists = callGitResult.ExitCode == 0;
 
         return gitObjectExists
-            ? RunGitCommand(workingDirectory: directory, "show", objectName)
+            ? await RunGitCommandAsync(workingDirectory: directory, cancellationToken, "show", objectName)
             : null;
     }
 
@@ -91,9 +91,9 @@ internal static class GitClient
     /// error message from git.
     /// </summary>
     /// <exception cref="GitException"></exception>
-    private static string RunGitCommand(string workingDirectory, params string[] arguments)
+    private static async Task<string> RunGitCommandAsync(string workingDirectory, CancellationToken cancellationToken, params string[] arguments)
     {
-        CallGitResult callGitResult = CallGitExecutable(workingDirectory, arguments);
+        CallGitResult callGitResult = await CallGitExecutableAsync(workingDirectory, cancellationToken, arguments);
 
         if (callGitResult.ExitCode == 0)
         {
@@ -114,9 +114,10 @@ internal static class GitClient
     private record CallGitResult(int ExitCode, string StandardOutput, string StandardError);
 
     /// <summary>
-    /// Execute a git command using <see cref="Process"/> and return the exit code, stdout, and stderr.
+    /// Execute a git command using <see cref="Process"/> and return the exit code, stdout, and stderr. If
+    /// <paramref name="cancellationToken"/> is cancelled, kill git and throw <see cref="OperationCanceledException"/>.
     /// </summary>
-    private static CallGitResult CallGitExecutable(string workingDirectory, params string[] arguments)
+    private static async Task<CallGitResult> CallGitExecutableAsync(string workingDirectory, CancellationToken cancellationToken, params string[] arguments)
     {
         ProcessStartInfo startInfo = new("git")
         {
@@ -135,16 +136,27 @@ internal static class GitClient
 
         using Process process = Start(startInfo);
 
-        // Read stderr concurrently so that neither pipe can fill up and block git.
-        Task<string> standardErrorTask = process.StandardError.ReadToEndAsync();
-        string standardOutput = process.StandardOutput.ReadToEnd();
-        string standardError = standardErrorTask.GetAwaiter().GetResult();
-        process.WaitForExit();
+        try
+        {
+            // Start both reads before awaiting either, so that stderr keeps draining while we wait on stdout, and
+            //   neither pipe can fill up and block git.
+            Task<string> standardOutputTask = process.StandardOutput.ReadToEndAsync(cancellationToken);
+            Task<string> standardErrorTask = process.StandardError.ReadToEndAsync(cancellationToken);
+            string standardOutput = await standardOutputTask;
+            string standardError = await standardErrorTask;
+            await process.WaitForExitAsync(cancellationToken);
 
-        return new CallGitResult(
-            ExitCode: process.ExitCode,
-            StandardOutput: standardOutput,
-            StandardError: standardError);
+            return new CallGitResult(
+                ExitCode: process.ExitCode,
+                StandardOutput: standardOutput,
+                StandardError: standardError);
+        }
+        catch (OperationCanceledException)
+        {
+            // Cancelling the wait doesn't stop git, so kill it rather than leave it running.
+            process.Kill(entireProcessTree: true);
+            throw;
+        }
     }
 
     private static Process Start(ProcessStartInfo startInfo)
