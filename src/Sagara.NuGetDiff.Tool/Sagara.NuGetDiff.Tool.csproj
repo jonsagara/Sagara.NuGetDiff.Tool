@@ -18,6 +18,7 @@
 
 	<ItemGroup>
 		<PackageReference Include="NuGet.Versioning" />
+		<PackageReference Include="Spectre.Console" />
 		<PackageReference Include="System.CommandLine" />
 		<PackageReference Include="TextCopy" />
 	</ItemGroup>

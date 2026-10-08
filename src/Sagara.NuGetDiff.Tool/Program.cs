@@ -3,6 +3,7 @@ using System.Xml;
 using Sagara.NuGetDiff.Tool.CommitMessages;
 using Sagara.NuGetDiff.Tool.Git;
 using Sagara.NuGetDiff.Tool.Packages;
+using Spectre.Console;
 using TextCopy;
 
 
@@ -186,7 +187,9 @@ static void CopyToClipboard(string text)
     try
     {
         ClipboardService.SetText(text);
-        Console.Error.WriteLine("Copied to clipboard.");
+
+        IAnsiConsole stderr = AnsiConsole.Create(new AnsiConsoleSettings { Out = new AnsiConsoleOutput(Console.Error) });
+        stderr.MarkupLine("[green]Copied to clipboard.[/]");
     }
     catch (Exception ex)
     {
