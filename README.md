@@ -1,4 +1,4 @@
-# Sagara.NuGetDiff.Tool
+# nuget-diff (officially Sagara.NuGetDiff.Tool)
 
 A .NET global tool that compares your `Directory.Packages.props` with the last commit and builds a ready-to-run `git commit` command listing every package that was upgraded, downgraded, added, or removed. The command is printed and copied to the clipboard.
 
