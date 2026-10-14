@@ -85,6 +85,20 @@ public class PackageDifferTests
         Assert.Equal(["Alpha", "beta", "zeta"], diff.Added.Select(c => c.Id));
     }
 
+    [Fact]
+    public void Diff_SortsConditionsNumerically()
+    {
+        const string net8 = "'$(TargetFramework)' == 'net8.0'";
+        const string net9 = "'$(TargetFramework)' == 'net9.0'";
+        const string net10 = "'$(TargetFramework)' == 'net10.0'";
+
+        PackageDiff diff = PackageDiffer.Diff(
+            [],
+            [new PackageVersionEntry("EF", net10, "10.0.0"), new PackageVersionEntry("EF", net8, "8.0.0"), new PackageVersionEntry("EF", null, "1.0.0"), new PackageVersionEntry("EF", net9, "9.0.0")]);
+
+        Assert.Equal([null, net8, net9, net10], diff.Added.Select(c => c.Condition));
+    }
+
     private static PackageVersionEntry Entry(string id, string version)
     {
         return new PackageVersionEntry(id, null, version);

@@ -123,7 +123,7 @@ internal static class PackageDiffer
     {
         return [.. changes
             .OrderBy(c => c.Id, StringComparer.OrdinalIgnoreCase)
-            .ThenBy(c => c.Condition, StringComparer.Ordinal)];
+            .ThenBy(c => c.Condition, NumericOrdinalStringComparer.Instance)];
     }
 
 
