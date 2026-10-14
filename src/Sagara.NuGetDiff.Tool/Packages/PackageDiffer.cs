@@ -1,4 +1,3 @@
-using System.Globalization;
 using NuGet.Versioning;
 
 namespace Sagara.NuGetDiff.Tool.Packages;
@@ -8,10 +7,6 @@ namespace Sagara.NuGetDiff.Tool.Packages;
 /// </summary>
 internal static class PackageDiffer
 {
-    // Compares runs of digits by numeric value so that target framework conditions sort as net8.0, net9.0, net10.0.
-    //   Uses the invariant culture so that the order doesn't depend on the machine's culture.
-    private static readonly StringComparer InvariantCultureNumeric = StringComparer.Create(CultureInfo.InvariantCulture, CompareOptions.NumericOrdering);
-
     private enum VersionChange
     {
         None,
@@ -128,7 +123,7 @@ internal static class PackageDiffer
     {
         return [.. changes
             .OrderBy(c => c.Id, StringComparer.OrdinalIgnoreCase)
-            .ThenBy(c => c.Condition, InvariantCultureNumeric)];
+            .ThenBy(c => c.Condition, NumericOrdinalStringComparer.Instance)];
     }
 
 
