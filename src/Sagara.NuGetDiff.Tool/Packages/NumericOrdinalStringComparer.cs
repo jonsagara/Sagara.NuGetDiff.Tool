@@ -2,9 +2,21 @@ namespace Sagara.NuGetDiff.Tool.Packages;
 
 /// <summary>
 /// Compares strings ordinally, except that runs of ASCII digits are compared by numeric value, so that
-/// "net8.0" sorts before "net10.0". Unlike <see cref="System.Globalization.CompareOptions.NumericOrdering"/>,
-/// this doesn't depend on ICU, so it gives the same order in invariant globalization mode.
+/// "net8.0" sorts before "net10.0".
 /// </summary>
+/// <remarks>
+/// <para>
+/// We don't use <see cref="System.Globalization.CompareOptions.NumericOrdering"/> because .NET hands
+/// culture-aware comparisons to a native library (ICU, or NLS on older Windows). In invariant globalization
+/// mode, .NET doesn't load that library. That mode is common in slim containers and CI images, and is
+/// often turned on to work around a missing libicu on Linux. Culture-aware comparisons then fall back to
+/// ordinal, and NumericOrdering is silently ignored, so "net10.0" would sort before "net8.0".
+/// </para>
+/// <para>
+/// Comparing ordinally also keeps the order identical across machines. Culture-aware sorting of punctuation
+/// can differ slightly between ICU versions.
+/// </para>
+/// </remarks>
 internal sealed class NumericOrdinalStringComparer : IComparer<string?>
 {
     public static NumericOrdinalStringComparer Instance { get; } = new();
