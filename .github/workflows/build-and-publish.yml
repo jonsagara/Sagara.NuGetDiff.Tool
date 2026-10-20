@@ -31,6 +31,7 @@ jobs:
     name: dotnet pack NuGet package
     runs-on: ubuntu-latest
     permissions:
+      actions: read   # list this workflow's runs to compute OfficialBuildId
       contents: read
 
     # Checkout the source code
@@ -51,11 +52,37 @@ jobs:
       with:
         global-json-file: global.json
 
+    # Sagara.Build.Versioning stamps FileVersion with the build date and build-of-the-day number from OfficialBuildId.
+    # OfficialBuildId = yyyyMMdd.N, where yyyyMMdd is this run's UTC creation date and N is this run's 1-based
+    #   position among this workflow's runs created that day. Using the run's own creation time and only
+    #   counting runs with a lower or equal id makes the value stable across re-runs and concurrent runs.
+    - name: Compute OfficialBuildId
+      env:
+        GH_TOKEN: ${{ github.token }}
+        REPO: ${{ github.repository }}
+        RUN_ID: ${{ github.run_id }}
+      run: |
+        $inv = [System.Globalization.CultureInfo]::InvariantCulture
+
+        $createdAt = gh api "repos/$env:REPO/actions/runs/$env:RUN_ID" --jq '.created_at'
+        if ($LASTEXITCODE -ne 0) { throw "Could not read run $env:RUN_ID." }
+        $created = [System.DateTimeOffset]::Parse($createdAt, $inv).UtcDateTime
+        $day = $created.ToString('yyyy-MM-dd', $inv)
+
+        $ids = gh api --paginate "repos/$env:REPO/actions/workflows/build-and-publish.yml/runs?created=${day}T00:00:00Z..${day}T23:59:59Z&per_page=100" --jq ".workflow_runs[] | select(.id <= $env:RUN_ID) | .id"
+        if ($LASTEXITCODE -ne 0) { throw 'Could not list workflow runs.' }
+        $n = @($ids | Where-Object { $_ }).Count
+        if ($n -lt 1 -or $n -gt 99) { throw "Build of the day must be 1-99, but was $n." }
+
+        $officialBuildId = '{0}.{1}' -f $created.ToString('yyyyMMdd', $inv), $n
+        "OfficialBuildId=$officialBuildId" >> $env:GITHUB_ENV
+        Write-Host "OfficialBuildId: $officialBuildId"
+
     # Create the .NET tool package in the folder from the environment variable NuGetDirectory.
     # A framework-dependent tool package is platform-neutral, so packing on Linux produces a package
     #   that installs and runs on Windows, macOS, and Linux.
     - name: dotnet pack Sagara.NuGetDiff.Tool
-      run: dotnet pack ./src/Sagara.NuGetDiff.Tool/Sagara.NuGetDiff.Tool.csproj --configuration Release --output "$env:NuGetDirectory"
+      run: dotnet pack ./src/Sagara.NuGetDiff.Tool/Sagara.NuGetDiff.Tool.csproj --configuration Release --output "$env:NuGetDirectory" -p:OfficialBuildId="$env:OfficialBuildId"
 
     # Upload .nupkg files as an artifact, so they can be used in the following jobs
     - name: Upload NuGet packages as artifacts
