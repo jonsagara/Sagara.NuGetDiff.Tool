@@ -3,10 +3,19 @@
 
 		<TargetFrameworks>net10.0</TargetFrameworks>
 		
+		<!--
+			Versioning: Sagara.Build.Versioning (GlobalPackageReference in Directory.Packages.props) computes
+			Version, AssemblyVersion (Major.Minor.0.0), and FileVersion from these.
+			- Set PrereleaseLabel to one of preview (default), alpha, beta, or rc for a pre-release version.
+			  Comment it out for a stable release.
+			- Set PreviewNumber to a positive integer for a pre-release version. Comment it out for a stable release.
+			Do not set Version, AssemblyVersion, or FileVersion directly.
+		-->
+		<VersionPrefix>1.0.2</VersionPrefix>
+		<!--<PrereleaseLabel>preview</PrereleaseLabel>
+		<PreviewNumber>1</PreviewNumber>-->
+		
 		<!-- NuGet -->
-		<Version>1.0.1</Version>
-		<AssemblyVersion>1.0.0</AssemblyVersion>
-		<FileVersion>1.0.0</FileVersion>
 		<Authors>Jon Sagara</Authors>
 		<Copyright>Copyright 2026</Copyright>
 		<RepositoryUrl>https://github.com/jonsagara/Sagara.NuGetDiff.Tool</RepositoryUrl>
